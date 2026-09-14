@@ -1,7 +1,7 @@
 const std = @import("std");
 const Io = std.Io;
 
-const zigimg = @import("zigimg");
+pub const zigimg = @import("zigimg");
 
 const Vec2i = @Vector(2, u32);
 const Vec2f = @Vector(2, f32);
@@ -11,6 +11,15 @@ fn loadImageFromPath(gpa: std.mem.Allocator, io: std.Io, path: []u8) !zigimg.Ima
     const image = try zigimg.Image.fromFilePath(gpa, io, path, read_buffer[0..]);
 
     return image;
+}
+
+fn lerpColor(a: anytype, b: @TypeOf(a), t: f32) @TypeOf(a) {
+    return .{
+        .r = std.math.lossyCast(u8, std.math.lerp(std.math.lossyCast(f32, a.r), std.math.lossyCast(f32, b.r), t)),
+        .g = std.math.lossyCast(u8, std.math.lerp(std.math.lossyCast(f32, a.g), std.math.lossyCast(f32, b.g), t)),
+        .b = std.math.lossyCast(u8, std.math.lerp(std.math.lossyCast(f32, a.b), std.math.lossyCast(f32, b.b), t)),
+        .a = std.math.lossyCast(u8, std.math.lerp(std.math.lossyCast(f32, a.a), std.math.lossyCast(f32, b.a), t)),
+    };
 }
 
 fn blitScaled(src: zigimg.Image, dst: zigimg.Image, new_size: Vec2i, offset: Vec2i) !void {
@@ -33,21 +42,21 @@ fn blitScaled(src: zigimg.Image, dst: zigimg.Image, new_size: Vec2i, offset: Vec
             const rightness = dst_position[0] - top_left[0];
             const bottomness = dst_position[1] - top_left[1];
 
-            const left_average = std.math.lerp(
-                src.pixels.rgb32[top_left[0] + top_left[1] * src.width],
-                src.pixels.rgb32[bottom_left[0] + bottom_left[1] * src.width],
+            const left_average = lerpColor(
+                src.pixels.rgba32[std.math.lossyCast(u32, top_left[0] + top_left[1]) * src.width],
+                src.pixels.rgba32[std.math.lossyCast(u32, bottom_left[0] + bottom_left[1]) * src.width],
                 bottomness,
             );
 
-            const right_average = std.math.lerp(
-                src.pixels.rgb32[top_right[0] + top_right[1] * src.width],
-                src.pixels.rgb32[bottom_right[0] + bottom_right[1] * src.width],
+            const right_average = lerpColor(
+                src.pixels.rgba32[std.math.lossyCast(u32, top_right[0] + top_right[1]) * src.width],
+                src.pixels.rgba32[std.math.lossyCast(u32, bottom_right[0] + bottom_right[1]) * src.width],
                 bottomness,
             );
 
-            const average = std.math.lerp(left_average, right_average, rightness);
+            const average = lerpColor(left_average, right_average, rightness);
 
-            dst.pixels.rgb32[dst_position[0] + dst_position[1] * dst.width] = average;
+            dst.pixels.rgba32[std.math.lossyCast(u32, dst_position[0] + dst_position[1]) * dst.width] = average;
         }
     }
 }
@@ -56,8 +65,12 @@ fn loadAndBlitToAtlas(gpa: std.mem.Allocator, io: std.Io, index: u32, path: []u8
     const image = try loadImageFromPath(gpa, io, path);
     errdefer image.deinit(gpa);
 
-    const target_position = indexToAtlasPosition(index, target_size, .{ atlas.width, atlas.height });
+    const target_position = indexToAtlasPosition(index, target_size, .{ @intCast(atlas.width), @intCast(atlas.height) });
     try blitScaled(image, atlas, target_size, target_position);
+}
+
+fn loadAndBlitToAtlasInfallible(gpa: std.mem.Allocator, io: Io, index: u32, path: []u8, atlas: zigimg.Image, target_size: @Vector(2, u32)) void {
+    loadAndBlitToAtlas(gpa, io, index, path, atlas, target_size) catch {};
 }
 
 fn indexToAtlasPosition(index: u32, image_size: Vec2i, atlas_size: Vec2i) Vec2i {
@@ -72,20 +85,17 @@ fn indexToAtlasPosition(index: u32, image_size: Vec2i, atlas_size: Vec2i) Vec2i 
 }
 
 pub fn buildAtlasFromPaths(gpa: std.mem.Allocator, io: std.Io, paths: [][]u8, atlas_size: Vec2i, sub_size: Vec2i) !zigimg.Image {
-    var atlas = zigimg.Image.create(gpa, atlas_size[0], atlas_size[1], .rgba32);
+    var atlas = try zigimg.Image.create(gpa, atlas_size[0], atlas_size[1], .rgba32);
     errdefer atlas.deinit(gpa);
 
-    var futures: []Io.AnyFuture = undefined;
+    var futures: []Io.Future(void) = undefined;
 
     for (paths, 0..) |path, i| {
-        futures[i] = io.concurrent(loadAndBlitToAtlas, .{ gpa, io, i, path, atlas, sub_size });
+        futures[i] = try io.concurrent(loadAndBlitToAtlasInfallible, .{ gpa, io, @intCast(i), path, atlas, sub_size });
     }
 
-    for (futures, paths) |future, path| {
-        future.await() catch blk: {
-            std.log.err("Failed to load image from '{s}'", .{path});
-            break :blk null;
-        };
+    for (futures) |*future| {
+        future.await(io);
     }
 
     return atlas;

@@ -76,7 +76,7 @@ pub fn build(b: *std.Build) void {
             // definition if desireable (e.g. firmware for embedded devices).
             .target = target,
             .optimize = optimize,
-            .link_libc = true,
+            .link_libc = false,
             // List of modules available for import in source files part of the
             // root module.
             .imports = &.{
@@ -86,7 +86,6 @@ pub fn build(b: *std.Build) void {
                 // can be extremely useful in case of collisions (which can happen
                 // importing modules from different packages).
                 .{ .name = "simple_atlas", .module = mod },
-                .{ .name = "zigimg", .module = zigimg_dependency.module("zigimg") },
             },
         }),
     });
