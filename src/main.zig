@@ -48,8 +48,7 @@ fn readNumber(line_buffer: []u8, input: *std.Io.Reader) !u32 {
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
-    var allocator: std.heap.DebugAllocator(.{}) = .{};
-    const gpa = allocator.allocator();
+    const gpa = std.heap.c_allocator;
 
     var stdin_buffer: [1024]u8 = undefined;
     var stdin = std.Io.File.stdin().reader(io, &stdin_buffer);
@@ -63,15 +62,23 @@ pub fn main(init: std.process.Init) !void {
     const image_width = try readNumber(line_buffer[0..], &stdin.interface);
     const image_height = try readNumber(line_buffer[0..], &stdin.interface);
 
+    const padding = try readNumber(line_buffer[0..], &stdin.interface);
+
     var paths: std.ArrayList([]u8) = .empty;
-    defer paths.deinit(gpa);
+    defer {
+        for (paths.items) |path| {
+            gpa.free(path);
+        }
+
+        paths.deinit(gpa);
+    }
 
     while (readLine(line_buffer[0..], &stdin.interface)) |line| {
         if (line.len == 0) break;
-        try paths.append(gpa, line);
+        try paths.append(gpa, try gpa.dupe(u8, line));
     } else |_| {}
 
-    var image = try simple_atlas.buildAtlasFromPaths(gpa, io, paths.items, .{ atlas_width, atlas_height }, .{ image_width, image_height });
+    var image = try simple_atlas.buildAtlasFromPaths(gpa, io, paths.items, .{ atlas_width, atlas_height }, .{ image_width, image_height }, padding);
     defer image.deinit(gpa);
 
     var write_buffer: [zigimg.io.DEFAULT_BUFFER_SIZE]u8 = undefined;
