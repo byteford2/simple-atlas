@@ -66,9 +66,10 @@ pub fn main(init: std.process.Init) !void {
     var paths: std.ArrayList([]u8) = .empty;
     defer paths.deinit(gpa);
 
-    while (readLine(line_buffer[0..], &stdin.interface) catch null) |line| {
+    while (readLine(line_buffer[0..], &stdin.interface)) |line| {
+        if (line.len == 0) break;
         try paths.append(gpa, line);
-    }
+    } else |_| {}
 
     const image = try simple_atlas.buildAtlasFromPaths(gpa, io, paths.items, .{ atlas_width, atlas_height }, .{ image_width, image_height });
 

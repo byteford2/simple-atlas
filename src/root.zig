@@ -88,13 +88,13 @@ pub fn buildAtlasFromPaths(gpa: std.mem.Allocator, io: std.Io, paths: [][]u8, at
     var atlas = try zigimg.Image.create(gpa, atlas_size[0], atlas_size[1], .rgba32);
     errdefer atlas.deinit(gpa);
 
-    var futures: []Io.Future(void) = undefined;
+    var futures: std.ArrayList(Io.Future(void)) = .empty;
 
     for (paths, 0..) |path, i| {
-        futures[i] = try io.concurrent(loadAndBlitToAtlasInfallible, .{ gpa, io, @intCast(i), path, atlas, sub_size });
+        try futures.append(gpa, try io.concurrent(loadAndBlitToAtlasInfallible, .{ gpa, io, @intCast(i), path, atlas, sub_size }));
     }
 
-    for (futures) |*future| {
+    for (futures.items) |*future| {
         future.await(io);
     }
 
