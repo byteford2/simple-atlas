@@ -13,27 +13,47 @@ fn loadImageFromPath(gpa: std.mem.Allocator, io: std.Io, path: []u8) !zigimg.Ima
     return image;
 }
 
+fn toFloat(x: anytype) f32 {
+    return std.math.lossyCast(f32, x);
+}
+
+fn toInt(x: anytype) u32 {
+    return std.math.lossyCast(u32, x);
+}
+
+fn toInt8(x: anytype) u8 {
+    return std.math.lossyCast(u8, x);
+}
+
 fn lerpColor(a: anytype, b: @TypeOf(a), t: f32) @TypeOf(a) {
     return .{
-        .r = std.math.lossyCast(u8, std.math.lerp(std.math.lossyCast(f32, a.r), std.math.lossyCast(f32, b.r), t)),
-        .g = std.math.lossyCast(u8, std.math.lerp(std.math.lossyCast(f32, a.g), std.math.lossyCast(f32, b.g), t)),
-        .b = std.math.lossyCast(u8, std.math.lerp(std.math.lossyCast(f32, a.b), std.math.lossyCast(f32, b.b), t)),
-        .a = std.math.lossyCast(u8, std.math.lerp(std.math.lossyCast(f32, a.a), std.math.lossyCast(f32, b.a), t)),
+        .r = toInt8(std.math.lerp(toFloat(a.r), toFloat(b.r), t)),
+        .g = toInt8(std.math.lerp(toFloat(a.g), toFloat(b.g), t)),
+        .b = toInt8(std.math.lerp(toFloat(a.b), toFloat(b.b), t)),
+        .a = toInt8(std.math.lerp(toFloat(a.a), toFloat(b.a), t)),
     };
+}
+
+fn vecIToF(v: Vec2i) Vec2f {
+    return .{ toFloat(v[0]), toFloat(v[1]) };
+}
+
+fn vecFToI(v: Vec2f) Vec2i {
+    return .{ toInt(v[0]), toInt(v[1]) };
 }
 
 fn blitScaled(gpa: std.mem.Allocator, src: *zigimg.Image, dst: zigimg.Image, new_size: Vec2i, offset: Vec2i) !void {
     // Bilinear scaling
-    const offset_f: Vec2f = .{ @as(f32, @floatFromInt(offset[0])), @as(f32, @floatFromInt(offset[1])) };
-    const new_size_f: Vec2f = .{ @as(f32, @floatFromInt(new_size[0])), @as(f32, @floatFromInt(new_size[1])) };
-    const old_size_f: Vec2f = .{ @as(f32, @floatFromInt(src.width)), @as(f32, @floatFromInt(src.height)) };
+    const offset_f = vecIToF(offset);
+    const new_size_f = vecIToF(new_size);
+    const old_size_f: Vec2f = .{ toFloat(src.width), toFloat(src.height) };
     const scale: Vec2f = old_size_f / new_size_f;
 
     try src.convert(gpa, .rgba32);
 
     for (offset[1]..offset[1] + new_size[1]) |y| {
         for (offset[0]..offset[0] + new_size[0]) |x| {
-            const dst_position: Vec2f = .{ @as(f32, @floatFromInt(x)), @as(f32, @floatFromInt(y)) };
+            const dst_position: Vec2f = .{ toFloat(x), toFloat(y) };
             const src_position = (dst_position - offset_f) * scale;
 
             const top_left = @floor(src_position);
@@ -44,8 +64,8 @@ fn blitScaled(gpa: std.mem.Allocator, src: *zigimg.Image, dst: zigimg.Image, new
             const rightness = src_position[0] - top_left[0];
             const bottomness = src_position[1] - top_left[1];
 
-            const top_left_index = std.math.lossyCast(u32, top_left[0]) + std.math.lossyCast(u32, top_left[1]) * src.width;
-            const bottom_left_index = std.math.lossyCast(u32, bottom_left[0]) + std.math.lossyCast(u32, bottom_left[1]) * src.width;
+            const top_left_index = toInt(top_left[0]) + toInt(top_left[1]) * src.width;
+            const bottom_left_index = toInt(bottom_left[0]) + toInt(bottom_left[1]) * src.width;
 
             const left_average = lerpColor(
                 src.pixels.rgba32[std.math.clamp(top_left_index, 0, src.pixels.rgba32.len - 1)],
@@ -53,8 +73,8 @@ fn blitScaled(gpa: std.mem.Allocator, src: *zigimg.Image, dst: zigimg.Image, new
                 bottomness,
             );
 
-            const top_right_index = std.math.lossyCast(u32, top_right[0]) + std.math.lossyCast(u32, top_right[1]) * src.width;
-            const bottom_right_index = std.math.lossyCast(u32, bottom_right[0]) + std.math.lossyCast(u32, bottom_right[1]) * src.width;
+            const top_right_index = toInt(top_right[0]) + toInt(top_right[1]) * src.width;
+            const bottom_right_index = toInt(bottom_right[0]) + toInt(bottom_right[1]) * src.width;
 
             const right_average = lerpColor(
                 src.pixels.rgba32[std.math.clamp(top_right_index, 0, src.pixels.rgba32.len - 1)],
