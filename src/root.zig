@@ -22,12 +22,14 @@ fn lerpColor(a: anytype, b: @TypeOf(a), t: f32) @TypeOf(a) {
     };
 }
 
-fn blitScaled(src: zigimg.Image, dst: zigimg.Image, new_size: Vec2i, offset: Vec2i) !void {
+fn blitScaled(gpa: std.mem.Allocator, src: *zigimg.Image, dst: zigimg.Image, new_size: Vec2i, offset: Vec2i) !void {
     // Bilinear scaling
     const offset_f: Vec2f = .{ @as(f32, @floatFromInt(offset[0])), @as(f32, @floatFromInt(offset[1])) };
     const new_size_f: Vec2f = .{ @as(f32, @floatFromInt(new_size[0])), @as(f32, @floatFromInt(new_size[1])) };
     const old_size_f: Vec2f = .{ @as(f32, @floatFromInt(src.width)), @as(f32, @floatFromInt(src.height)) };
     const scale: Vec2f = new_size_f / old_size_f;
+
+    try src.convert(gpa, .rgba32);
 
     for (0..src.height) |y| {
         for (0..src.width) |x| {
@@ -62,11 +64,11 @@ fn blitScaled(src: zigimg.Image, dst: zigimg.Image, new_size: Vec2i, offset: Vec
 }
 
 fn loadAndBlitToAtlas(gpa: std.mem.Allocator, io: std.Io, index: u32, path: []u8, atlas: zigimg.Image, target_size: Vec2i) !void {
-    const image = try loadImageFromPath(gpa, io, path);
-    errdefer image.deinit(gpa);
+    var image = try loadImageFromPath(gpa, io, path);
+    defer image.deinit(gpa);
 
     const target_position = indexToAtlasPosition(index, target_size, .{ @intCast(atlas.width), @intCast(atlas.height) });
-    try blitScaled(image, atlas, target_size, target_position);
+    try blitScaled(gpa, &image, atlas, target_size, target_position);
 }
 
 fn loadAndBlitToAtlasInfallible(gpa: std.mem.Allocator, io: Io, index: u32, path: []u8, atlas: zigimg.Image, target_size: @Vector(2, u32)) void {
