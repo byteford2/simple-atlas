@@ -123,7 +123,7 @@ pub fn buildAtlasFromPaths(gpa: std.mem.Allocator, io: std.Io, paths: [][]u8, at
     var futures: std.ArrayList(Io.Future(void)) = .empty;
 
     for (paths, 0..) |path, i| {
-        try futures.append(gpa, try io.concurrent(loadAndBlitToAtlasInfallible, .{ gpa, io, @intCast(i), path, atlas, sub_size, padding }));
+        try futures.append(gpa, io.async(loadAndBlitToAtlasInfallible, .{ gpa, io, @intCast(i), path, atlas, sub_size, padding }));
     }
 
     for (futures.items) |*future| {
