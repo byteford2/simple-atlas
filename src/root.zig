@@ -72,7 +72,9 @@ fn loadAndBlitToAtlas(gpa: std.mem.Allocator, io: std.Io, index: u32, path: []u8
 }
 
 fn loadAndBlitToAtlasInfallible(gpa: std.mem.Allocator, io: Io, index: u32, path: []u8, atlas: zigimg.Image, target_size: @Vector(2, u32)) void {
-    loadAndBlitToAtlas(gpa, io, index, path, atlas, target_size) catch {};
+    loadAndBlitToAtlas(gpa, io, index, path, atlas, target_size) catch {
+        std.log.debug("Error loading/blitting '{s}'", .{path});
+    };
 }
 
 fn indexToAtlasPosition(index: u32, image_size: Vec2i, atlas_size: Vec2i) Vec2i {

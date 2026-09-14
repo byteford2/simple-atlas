@@ -71,7 +71,8 @@ pub fn main(init: std.process.Init) !void {
         try paths.append(gpa, line);
     } else |_| {}
 
-    const image = try simple_atlas.buildAtlasFromPaths(gpa, io, paths.items, .{ atlas_width, atlas_height }, .{ image_width, image_height });
+    var image = try simple_atlas.buildAtlasFromPaths(gpa, io, paths.items, .{ atlas_width, atlas_height }, .{ image_width, image_height });
+    defer image.deinit(gpa);
 
     var write_buffer: [zigimg.io.DEFAULT_BUFFER_SIZE]u8 = undefined;
     try image.writeToFilePath(gpa, io, "atlas.png", write_buffer[0..], .{ .png = .{} });
